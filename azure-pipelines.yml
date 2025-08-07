@@ -1,0 +1,85 @@
+trigger:
+- main
+
+variables:
+  pythonVersion: '3.10'
+  nodeVersion: '18.x'
+
+stages:
+- stage: Build
+  jobs:
+  - job: Build_Backend
+    displayName: 'Build Flask Backend LLM'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(pythonVersion)'
+    - script: |
+        python -m venv env
+        source env/bin/activate
+        pip install -r flask_backend/requirements.txt
+      displayName: 'Install Python dependencies'
+    - script: |
+        echo "Backend build complete"
+      displayName: 'Backend Build Complete'
+
+  - job: Build_Frontend
+    displayName: 'Build React Frontend LLM'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '$(nodeVersion)'
+    - script: |
+        cd frontend
+        npm install
+        npm run build
+      displayName: 'Build React App'
+    - script: |
+        echo "Frontend build complete"
+      displayName: 'Frontend Build Complete'
+
+- stage: Deploy
+  dependsOn: Build
+  jobs:
+  - deployment: Deploy_Backend
+    displayName: 'Deploy Flask Backend'
+    environment: 'backend-env'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
+          - script: |
+              python -m venv env
+              source env/bin/activate
+              pip install -r flask_backend/requirements.txt
+              # Add your deployment command here, e.g.:
+              # az webapp up --name llm-app-backend --resource-group technical-tester-projyot --runtime "PYTHON|3.10" --src-path flask_backend
+            displayName: 'Deploy Flask Backend'
+  - deployment: Deploy_Frontend
+    displayName: 'Deploy React Frontend'
+    environment: 'frontend-env'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '$(nodeVersion)'
+          - script: |
+              cd frontend
+              npm install
+              npm run build
+              # Add your deployment command here, e.g.:
+              # az webapp up --name <frontend-app-name> --resource-group technical-tester-projyot --runtime "NODE|18-lts" --src-path build
+            displayName: 'Deploy React Frontend'
